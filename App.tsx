@@ -1,27 +1,3 @@
-/**
- * MIT License
- *
- * Copyright (c) 2019 Douglas Nassif Roma Junior
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 import React, {useState} from 'react';
 import {
   Platform,
@@ -30,56 +6,70 @@ import {
   View,
   Button,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 
 import GetLocation, {
-  Location,
+  Location as GetLocationType,
   LocationErrorCode,
   isLocationError,
 } from 'react-native-get-location';
 
-const instructions = Platform.select({
-  ios: 'Press Cmd+R to reload,\n' + 'Cmd+D or shake for dev menu',
-  android:
-    'Double tap R on your keyboard to reload,\n' +
-    'Shake or press menu button for dev menu',
-});
+import Geolocation, {
+  GeoPosition,
+  GeoError,
+} from 'react-native-geolocation-service';
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 24,
+    paddingTop: 60,
     backgroundColor: '#F5FCFF',
   },
-  welcome: {
-    fontSize: 20,
-    textAlign: 'center',
-    margin: 10,
+  section: {
+    marginBottom: 24,
+    borderBottomWidth: 1,
+    borderColor: '#ccc',
+    paddingBottom: 12,
   },
-  instructions: {
-    textAlign: 'center',
-    color: '#333333',
-    marginBottom: 5,
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
-  location: {
-    color: '#333333',
-    marginBottom: 5,
+  jsonBlock: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    backgroundColor: '#eee',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 8,
   },
   button: {
-    marginBottom: 8,
+    marginVertical: 8,
+  },
+  error: {
+    color: 'red',
+    marginTop: 8,
   },
 });
 
-function App(): JSX.Element {
-  const [loading, setLoading] = useState(false);
-  const [location, setLocation] = useState<Location | null>(null);
-  const [error, setError] = useState<LocationErrorCode | null>(null);
+const App = (): JSX.Element => {
+  const [loadingGetLocation, setLoadingGetLocation] = useState(false);
+  const [locationGetLocation, setLocationGetLocation] =
+      useState<GetLocationType | null>(null);
+  const [errorGetLocation, setErrorGetLocation] =
+      useState<LocationErrorCode | null>(null);
 
-  const requestLocation = () => {
-    setLoading(true);
-    setLocation(null);
-    setError(null);
+  const [loadingGeoService, setLoadingGeoService] = useState(false);
+  const [locationGeoService, setLocationGeoService] =
+      useState<GeoPosition['coords'] | null>(null);
+  const [errorGeoService, setErrorGeoService] = useState<string | null>(null);
+
+  const getLocationFromGetLocation = () => {
+    setLoadingGetLocation(true);
+    setLocationGetLocation(null);
+    setErrorGetLocation(null);
 
     GetLocation.getCurrentPosition({
       enableHighAccuracy: true,
@@ -90,57 +80,92 @@ function App(): JSX.Element {
         buttonPositive: 'Ok',
       },
     })
-      .then(newLocation => {
-        setLoading(false);
-        setLocation(newLocation);
-      })
-      .catch(ex => {
-        if (isLocationError(ex)) {
-          const {code, message} = ex;
-          console.warn(code, message);
-          setError(code);
-        } else {
-          console.warn(ex);
-        }
-        setLoading(false);
-        setLocation(null);
-      });
+        .then(loc => {
+          setLoadingGetLocation(false);
+          setLocationGetLocation(loc);
+        })
+        .catch(ex => {
+          if (isLocationError(ex)) {
+            setErrorGetLocation(ex.code);
+          } else {
+            setErrorGetLocation('UNKNOWN');
+          }
+          setLoadingGetLocation(false);
+        });
+  };
+
+  const getLocationFromGeoService = () => {
+    setLoadingGeoService(true);
+    setLocationGeoService(null);
+    setErrorGeoService(null);
+
+    Geolocation.getCurrentPosition(
+        position => {
+          setLoadingGeoService(false);
+          setLocationGeoService(position.coords);
+        },
+        (error: GeoError) => {
+          setLoadingGeoService(false);
+          setErrorGeoService(error.message);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 30000,
+          maximumAge: 10000,
+          forceRequestLocation: true,
+          showLocationDialog: true,
+        },
+    );
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.welcome}>Welcome to React Native!</Text>
-      <Text style={styles.instructions}>
-        To get location, press the button:
-      </Text>
+      <ScrollView style={styles.container}>
+        <View style={styles.section}>
+          <Text style={styles.title}>📍react-native-get-location</Text>
+          <Button
+              title="Get Location (get-location)"
+              onPress={getLocationFromGetLocation}
+              disabled={loadingGetLocation}
+          />
+          {loadingGetLocation && <ActivityIndicator />}
+          {locationGetLocation && (
+              <Text style={styles.jsonBlock}>
+                {JSON.stringify(locationGetLocation, null, 2)}
+              </Text>
+          )}
+          {errorGetLocation && (
+              <Text style={styles.error}>Error: {errorGetLocation}</Text>
+          )}
+        </View>
 
-      <View style={styles.button}>
-        <Button
-          disabled={loading}
-          title="Get Location"
-          onPress={requestLocation}
-        />
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.title}>📍 react-native-geolocation-service</Text>
+          <Button
+              title="Get Location (geolocation-service)"
+              onPress={getLocationFromGeoService}
+              disabled={loadingGeoService}
+          />
+          {loadingGeoService && <ActivityIndicator />}
+          {locationGeoService && (
+              <Text style={styles.jsonBlock}>
+                {JSON.stringify(locationGeoService, null, 2)}
+              </Text>
+          )}
+          {errorGeoService && (
+              <Text style={styles.error}>Error: {errorGeoService}</Text>
+          )}
+        </View>
 
-      {loading ? <ActivityIndicator /> : null}
-      {location ? (
-        <Text style={styles.location}>{JSON.stringify(location, null, 2)}</Text>
-      ) : null}
-      {error ? <Text style={styles.location}>Error: {error}</Text> : null}
-
-      <Text style={styles.instructions}>Extra functions:</Text>
-      <View style={styles.button}>
-        <Button
-          title="Open App Settings"
-          onPress={() => {
-            GetLocation.openSettings();
-          }}
-        />
-      </View>
-
-      <Text style={styles.instructions}>{instructions}</Text>
-    </View>
+        <View style={styles.section}>
+          <Button
+              title="Open App Settings"
+              onPress={() => {
+                GetLocation.openSettings();
+              }}
+          />
+        </View>
+      </ScrollView>
   );
-}
+};
 
 export default App;
